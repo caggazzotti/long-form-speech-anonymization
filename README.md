@@ -1,7 +1,7 @@
 # Content Anonymization for Privacy in Long-form Audio
 
 This is the repo for the 2025 paper ["Content Anonymization for Privacy in Long-form Audio"](
-https://doi.org/10.48550/arXiv.2510.12780). This paper calls attention to the previously overlooked privacy risk of identifying a speaker by the stylistic content of their speech, which builds up over multiple utterances. Most voice anonymization techniques focus on single utterances and most content anonymization approaches focus on obscuring personally identifiable information (PII). However, throughout a conversation, even if the voice is anonymized and the PII removed, a speaker can still be identified by their speaking style and patterns. Thus, we present a new pipeline for anonymizing both a speaker's voice and the content of their speech for more comprehensive protection of a speaker's identity.
+https://doi.org/10.48550/arXiv.2510.12780). This paper calls attention to the previously overlooked privacy risk of identifying a speaker by the stylistic content of their speech, which builds up over multiple utterances. Most voice anonymization techniques focus on single utterances and most content anonymization approaches focus on obscuring personally identifiable information (PII). However, throughout a conversation, even if the voice is anonymized and the PII removed, a speaker can still be identified by their speaking style and patterns. Thus, we present a new pipeline for anonymizing both a speaker's voice and the content of their speech for more comprehensive protection of a speaker's identity.	
 
 ## Code coming soon!
 
@@ -17,4 +17,4 @@ If you use our pipeline in your work, please consider citing our paper:
       archivePrefix={arXiv},
       primaryClass={cs.SD},
       url={https://arxiv.org/abs/2510.12780}, 
-}
+	}
