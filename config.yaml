@@ -1,0 +1,30 @@
+# Content anonymization pipeline config
+# Paths can be absolute or relative to this file's directory.
+
+work_dir: '.'  # repo root; data/, trials/, output/ are under here
+
+# Where to find Fisher/LDC trial lists (full transcript, no first-5 removal) for no anonymization.
+# Option A: point to speech-attribution work_dir (trials loaded from {speech_attribution_dir}/trials_data/)
+speech_attribution_dir: null   # e.g. '/path/to/speech-attribution'
+# Option B: directory containing ldc_{dataset}_{difficulty}_trials.npy
+ldc_trials_dir: null   # e.g. 'data/ldc_trials' or speech-attribution trials_data
+
+# Trial construction: directory with speech-attribution trial info JSONs for building matched trials from utterance files
+# (e.g. {dataset}_basepos_trials_info_final.json). 
+trials_info_dir: null   # e.g. '{speech_attribution_dir}/trials_data'
+
+datasets: ['test']
+difficulties: ['hard'] # paper uses 'hard'; can use ['base','hard','harder']
+
+# Systems: whisper_medium (reference), paraphrased_*, anonymized, ldc (no anonymization)
+# Content anonymization: paraphrased_gpt4omini, paraphrased_gpt5, paraphrased_gemma3-4b, etc.
+systems: ['whisper_medium', 'paraphrased_gpt4omini', 'paraphrased_gemma3-4b', 'paraphrased_gemma3-4bc']
+
+# SLUAR Hugging Face embedding (content attack model) 
+sluar_model_id: 'noandrews/sluar'
+
+num_utts_options: [5, 15, 25, 45, 75, 'full']
+
+# Matched (non-anon vs anon) evaluation
+matched_systems: ['whisper-gpt4omini', 'whisper-gpt5', 'whisper-gemma3-4b', 'whisper-gemma3-4bc']
+eval_type: 'test'
