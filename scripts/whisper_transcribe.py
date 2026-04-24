@@ -11,6 +11,7 @@ scripts/generate_paraphrase_prompts.py can fill {gender} / "Speaker's gender:" l
 Usage:
   python scripts/whisper_transcribe.py config.yaml
   python scripts/whisper_transcribe.py config.yaml --system whisper_medium --utterances-per-side 3
+  python scripts/whisper_transcribe.py config.yaml --no-normalize
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 from match_trials import _resolve_trials_info_dir, difficulty_to_trial_types
+from paraphrase_responses_to_utterances import normalize_text as normalize_utterance_line
 
 
 def transcribe_placeholder(call_id: str, pin: str, gender: str, utterances_per_side: int) -> list[str]:
@@ -112,12 +114,15 @@ def _sort_pin(pid: str) -> tuple[int, str]:
     return (int(pid), pid) if str(pid).isdigit() else (10**18, pid)
 
 
-def build_utts_dict(pair_gender: dict[tuple[str, str], str], utterances_per_side: int) -> dict:
+def build_utts_dict(
+    pair_gender: dict[tuple[str, str], str], utterances_per_side: int, *, normalize: bool
+) -> dict:
     """Pipeline utterance JSON: call -> pin -> {text, gender?}."""
     by_call: dict[str, dict] = {}
     for (call_id, pin) in sorted(pair_gender.keys(), key=lambda t: (_sort_call_id(t[0]), _sort_pin(t[1]))):
         gender = pair_gender[(call_id, pin)]
-        text = transcribe_placeholder(call_id, pin, gender, utterances_per_side)
+        raw = transcribe_placeholder(call_id, pin, gender, utterances_per_side)
+        text = [normalize_utterance_line(s) for s in raw] if normalize else raw
         speaker: dict = {"text": text}
         if gender:
             speaker["gender"] = gender
@@ -139,6 +144,12 @@ def main() -> None:
         "--output",
         default=None,
         help="If set, write a single JSON to this path (ignores datasets loop)",
+    )
+    parser.add_argument(
+        "--normalize",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Apply the same per-line normalization as paraphrase_responses_to_utterances.py (default: on)",
     )
     args = parser.parse_args()
 
@@ -178,7 +189,7 @@ def main() -> None:
                 file=sys.stderr,
             )
             sys.exit(1)
-        utts = build_utts_dict(merged, args.utterances_per_side)
+        utts = build_utts_dict(merged, args.utterances_per_side, normalize=args.normalize)
         out_path = os.path.abspath(args.output)
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         with open(out_path, "w") as f:
@@ -192,7 +203,7 @@ def main() -> None:
         if not pair_gender:
             print(f"Skip dataset {dataset}: no trial-info JSONs for requested difficulties.", file=sys.stderr)
             continue
-        utts = build_utts_dict(pair_gender, args.utterances_per_side)
+        utts = build_utts_dict(pair_gender, args.utterances_per_side, normalize=args.normalize)
         out_path = os.path.join(data_dir, f"{args.system}_{dataset}_trials_utts.json")
         with open(out_path, "w") as f:
             json.dump(utts, f, indent=2)
