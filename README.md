@@ -90,7 +90,7 @@ bash scripts/run_content_pipeline.sh --match --embed-matched --embed-ldc --eval
 
 1. **ASR transcribe Fisher audio calls**
 
-Use `scripts/whisper_transcribe.py` to automatically transcribe **every Fisher audio call** that appears in your trials at the chosen difficulty level (all call IDs used as call 1 or call 2). Store per-call, per-speaker utterances as JSON of the format `{call_id: {speaker_id: {"text": [str, ...]}}}` in files called `whisper_medium_test_trials_utts.json`. These will be used for the first side (call 1) of each trial.
+Use `scripts/whisper_transcribe.py` to automatically transcribe **every Fisher audio call** that appears in your trials at the chosen difficulty level (all call IDs used as call 1 or call 2). Store per-call, per-speaker utterances as JSON of the format `{call_id: {speaker_id: {"text": [str, ...], "gender": "m"|"f"}}}` in a file called `whisper_medium_test_trials_utts.json`. These will be used for the first side (call 1) of each trial.
 
 2. **Generate paraphrase prompts**
 

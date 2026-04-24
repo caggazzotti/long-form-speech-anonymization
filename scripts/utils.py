@@ -23,8 +23,8 @@ def normalize_text(s: str) -> str:
 def load_utterances(path: str) -> dict:
     """
     Load utterance JSON.
-    Expected: {call_id: {speaker_id: {'text': [str, ...]}}} or {call_id: {speaker_id: [str, ...]}}.
-    Returns dict with structure {call_id: {speaker_id: {'text': [...]}}}.
+    Expected: {call_id: {speaker_id: {'text': [str, ...], optional 'gender': 'm'|'f'}}} or
+    {call_id: {speaker_id: [str, ...]}}. Returns dict with the same inner dict shape when present.
     """
     with open(path, "r") as f:
         data = json.load(f)

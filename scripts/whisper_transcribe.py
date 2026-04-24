@@ -2,7 +2,10 @@
 Build Whisper-side utterance JSON for the content pipeline (call 1 / non-anonymized text).
 
 Writes one file per dataset, e.g. data/whisper_medium_test_trials_utts.json, shaped as:
-  { call_id: { speaker_pin: { "text": [str, ...] } } }.
+  { call_id: { speaker_pin: { "text": [str, ...], "gender": "m"|"f" } } }
+
+Gender is taken from Fisher trial-info JSONs (same fields as speech-attribution) so
+scripts/generate_paraphrase_prompts.py can fill {gender} / "Speaker's gender:" lines.
 
 
 Usage:
@@ -25,23 +28,49 @@ if _SCRIPT_DIR not in sys.path:
 from match_trials import _resolve_trials_info_dir, difficulty_to_trial_types
 
 
-def transcribe_placeholder(call_id: str, pin: str, utterances_per_side: int) -> list[str]:
+def transcribe_placeholder(call_id: str, pin: str, gender: str, utterances_per_side: int) -> list[str]:
     """
     PLACEHOLDER: replace with real transcription of Fisher audio for this call/side.
 
     Should return one string per utterance segment (same granularity you use downstream).
+    `gender` is \"m\", \"f\", or \"\" (from trial metadata).
     """
+    _ = gender  # available for real ASR / prompt conditioning
     return [
         f"[PLACEHOLDER ASR] call {call_id} speaker {pin} segment {i + 1}"
         for i in range(utterances_per_side)
     ]
 
 
-def _collect_call_pins_for_dataset(
+def _normalize_gender(raw: object) -> str:
+    if raw is None:
+        return ""
+    g = str(raw).strip().lower()
+    if g in ("m", "male"):
+        return "m"
+    if g in ("f", "female"):
+        return "f"
+    return ""
+
+
+def _merge_pair_gender(dst: dict[tuple[str, str], str], call_id: str, pin: str, gender: str) -> None:
+    key = (call_id, pin)
+    if not gender:
+        if key not in dst:
+            dst[key] = ""
+        return
+    if key not in dst or not dst[key]:
+        dst[key] = gender
+        return
+    if dst[key] != gender:
+        print(f"Warning: conflicting gender for call {call_id} pin {pin}: {dst[key]!r} vs {gender!r}", file=sys.stderr)
+
+
+def _collect_pair_genders_for_dataset(
     trials_info_dir: str, dataset: str, difficulties: list[str]
-) -> dict[str, set[str]]:
-    """call_id -> set of PIN strings for this dataset across the given difficulties."""
-    by_call: dict[str, set[str]] = {}
+) -> dict[tuple[str, str], str]:
+    """(call_id, pin) -> \"m\"|\"f\"|\"\" from pos/neg trial-info JSONs for this dataset."""
+    out: dict[tuple[str, str], str] = {}
 
     for difficulty in difficulties:
         pos_type, neg_type = difficulty_to_trial_types(difficulty)
@@ -54,19 +83,45 @@ def _collect_call_pins_for_dataset(
             pos_info = json.load(f)
         for trial in pos_info:
             pin = str(trial["PIN"])
-            call1 = str(trial["call 1"][1])
-            call2 = str(trial["call 2"][1])
-            by_call.setdefault(call1, set()).add(pin)
-            by_call.setdefault(call2, set()).add(pin)
+            row1, row2 = trial["call 1"], trial["call 2"]
+            g1, call1 = _normalize_gender(row1[0]), str(row1[1])
+            g2, call2 = _normalize_gender(row2[0]), str(row2[1])
+            _merge_pair_gender(out, call1, pin, g1)
+            _merge_pair_gender(out, call2, pin, g2)
 
         with open(neg_path) as f:
             neg_info = json.load(f)
         for trial in neg_info:
-            pin1, call1 = str(trial[0][0]), str(trial[0][2])
-            pin2, call2 = str(trial[1][0]), str(trial[1][2])
-            by_call.setdefault(call1, set()).add(pin1)
-            by_call.setdefault(call2, set()).add(pin2)
+            pin1 = str(trial[0][0])
+            g1 = _normalize_gender(trial[0][1])
+            call1 = str(trial[0][2])
+            pin2 = str(trial[1][0])
+            g2 = _normalize_gender(trial[1][1])
+            call2 = str(trial[1][2])
+            _merge_pair_gender(out, call1, pin1, g1)
+            _merge_pair_gender(out, call2, pin2, g2)
 
+    return out
+
+
+def _sort_call_id(cid: str) -> tuple[int, str]:
+    return (int(cid), cid) if str(cid).isdigit() else (10**18, cid)
+
+
+def _sort_pin(pid: str) -> tuple[int, str]:
+    return (int(pid), pid) if str(pid).isdigit() else (10**18, pid)
+
+
+def build_utts_dict(pair_gender: dict[tuple[str, str], str], utterances_per_side: int) -> dict:
+    """Pipeline utterance JSON: call -> pin -> {text, gender?}."""
+    by_call: dict[str, dict] = {}
+    for (call_id, pin) in sorted(pair_gender.keys(), key=lambda t: (_sort_call_id(t[0]), _sort_pin(t[1]))):
+        gender = pair_gender[(call_id, pin)]
+        text = transcribe_placeholder(call_id, pin, gender, utterances_per_side)
+        speaker: dict = {"text": text}
+        if gender:
+            speaker["gender"] = gender
+        by_call.setdefault(call_id, {})[pin] = speaker
     return by_call
 
 
@@ -103,28 +158,27 @@ def main() -> None:
 
     os.makedirs(data_dir, exist_ok=True)
 
-    def build_utts_dict(by_call: dict[str, set[str]]) -> dict:
-        out: dict = {}
-        for call_id in sorted(by_call.keys(), key=lambda x: int(x) if str(x).isdigit() else str(x)):
-            out[call_id] = {}
-            for pin in sorted(by_call[call_id], key=lambda x: int(x) if str(x).isdigit() else str(x)):
-                text = transcribe_placeholder(call_id, pin, args.utterances_per_side)
-                out[call_id][pin] = {"text": text}
-        return out
-
     if args.output:
-        by_call: dict[str, set[str]] = {}
+        merged: dict[tuple[str, str], str] = {}
         for dataset in datasets:
-            part = _collect_call_pins_for_dataset(trials_info_dir, dataset, difficulties)
-            for cid, pins in part.items():
-                by_call.setdefault(cid, set()).update(pins)
-        if not by_call:
+            part = _collect_pair_genders_for_dataset(trials_info_dir, dataset, difficulties)
+            for key, g in part.items():
+                if key not in merged:
+                    merged[key] = g
+                elif g and not merged[key]:
+                    merged[key] = g
+                elif g and merged[key] and merged[key] != g:
+                    print(
+                        f"Warning: conflicting gender for {key} across datasets: {merged[key]!r} vs {g!r}",
+                        file=sys.stderr,
+                    )
+        if not merged:
             print(
                 f"No trial-info JSONs found under {trials_info_dir} for datasets={datasets} difficulties={difficulties}.",
                 file=sys.stderr,
             )
             sys.exit(1)
-        utts = build_utts_dict(by_call)
+        utts = build_utts_dict(merged, args.utterances_per_side)
         out_path = os.path.abspath(args.output)
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         with open(out_path, "w") as f:
@@ -134,11 +188,11 @@ def main() -> None:
 
     any_written = False
     for dataset in datasets:
-        by_call = _collect_call_pins_for_dataset(trials_info_dir, dataset, difficulties)
-        if not by_call:
+        pair_gender = _collect_pair_genders_for_dataset(trials_info_dir, dataset, difficulties)
+        if not pair_gender:
             print(f"Skip dataset {dataset}: no trial-info JSONs for requested difficulties.", file=sys.stderr)
             continue
-        utts = build_utts_dict(by_call)
+        utts = build_utts_dict(pair_gender, args.utterances_per_side)
         out_path = os.path.join(data_dir, f"{args.system}_{dataset}_trials_utts.json")
         with open(out_path, "w") as f:
             json.dump(utts, f, indent=2)
