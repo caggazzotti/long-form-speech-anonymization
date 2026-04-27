@@ -8,7 +8,7 @@ Each input base profile must contain:
 The output file is a `.pth` with the same keys and can be consumed by
 `scripts/anonymize_batch_xtts.py`.
 
-This is a cleaned, pushable copy of the local research script `create_avg.py`.
+
 """
 
 from __future__ import annotations
