@@ -1,0 +1,3 @@
+__pycache__/
+*.pyc
+scripts/voice_anonymization/__pycache__/

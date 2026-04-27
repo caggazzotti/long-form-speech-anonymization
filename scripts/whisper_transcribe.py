@@ -1,17 +1,16 @@
 """
-Build Whisper-side utterance JSON for the content pipeline (call 1 / non-anonymized text).
+Build Whisper-side transcription outputs for Fisher calls.
 
-Writes one file per dataset, e.g. data/whisper_medium_test_trials_utts.json, shaped as:
+Default output is the utterance JSON used by the content / matched-trial pipeline:
   { call_id: { speaker_pin: { "text": [str, ...], "gender": "m"|"f" } } }
 
-Gender is taken from Fisher trial-info JSONs (same fields as speech-attribution) so
-scripts/generate_paraphrase_prompts.py can fill {gender} / "Speaker's gender:" lines.
-
+This script can also emit XTTS-style `filename.wav|transcript` rows for the voice
+anonymization pipeline.
 
 Usage:
   python scripts/whisper_transcribe.py config.yaml
   python scripts/whisper_transcribe.py config.yaml --system whisper_medium --utterances-per-side 3
-  python scripts/whisper_transcribe.py config.yaml --no-normalize
+  python scripts/whisper_transcribe.py config.yaml --output-format xtts_manifest --output data/voiceanon_inputs.txt
 """
 
 from __future__ import annotations
@@ -130,8 +129,47 @@ def build_utts_dict(
     return by_call
 
 
+def build_xtts_manifest_lines(
+    pair_gender: dict[tuple[str, str], str], utterances_per_side: int, *, normalize: bool
+) -> list[str]:
+    """
+    XTTS manifest rows:
+      fe_{call_id}_{speaker_id}_{segment_index}.wav|transcript
+
+    This keeps a deterministic filename convention for downstream anonymization.
+    """
+    lines: list[str] = []
+    for (call_id, pin) in sorted(pair_gender.keys(), key=lambda t: (_sort_call_id(t[0]), _sort_pin(t[1]))):
+        gender = pair_gender[(call_id, pin)]
+        raw = transcribe_placeholder(call_id, pin, gender, utterances_per_side)
+        text_items = [normalize_utterance_line(s) for s in raw] if normalize else raw
+        for index, transcript in enumerate(text_items, start=1):
+            filename = f"fe_{call_id}_{pin}_{index}.wav"
+            lines.append(f"{filename}|{transcript}")
+    return lines
+
+
+def _merge_pair_genders_across_datasets(
+    trials_info_dir: str, datasets: list[str], difficulties: list[str]
+) -> dict[tuple[str, str], str]:
+    merged: dict[tuple[str, str], str] = {}
+    for dataset in datasets:
+        part = _collect_pair_genders_for_dataset(trials_info_dir, dataset, difficulties)
+        for key, gender in part.items():
+            if key not in merged:
+                merged[key] = gender
+            elif gender and not merged[key]:
+                merged[key] = gender
+            elif gender and merged[key] and merged[key] != gender:
+                print(
+                    f"Warning: conflicting gender for {key} across datasets: {merged[key]!r} vs {gender!r}",
+                    file=sys.stderr,
+                )
+    return merged
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build whisper_*_trials_utts.json (ASR placeholder).")
+    parser = argparse.ArgumentParser(description="Build Whisper transcription outputs (ASR placeholder).")
     parser.add_argument("config", help="Path to config.yaml (needs trials_info_dir or speech_attribution_dir)")
     parser.add_argument("--system", default="whisper_medium", help="Prefix for output filename under data/")
     parser.add_argument(
@@ -143,7 +181,13 @@ def main() -> None:
     parser.add_argument(
         "--output",
         default=None,
-        help="If set, write a single JSON to this path (ignores datasets loop)",
+        help="If set, write a single output file to this path (ignores dataset-based default naming).",
+    )
+    parser.add_argument(
+        "--output-format",
+        choices=("utterance_json", "xtts_manifest"),
+        default="utterance_json",
+        help="Output format: content-pipeline JSON or XTTS `filename|transcript` manifest.",
     )
     parser.add_argument(
         "--normalize",
@@ -169,20 +213,25 @@ def main() -> None:
 
     os.makedirs(data_dir, exist_ok=True)
 
+    if args.output_format == "xtts_manifest":
+        merged = _merge_pair_genders_across_datasets(trials_info_dir, datasets, difficulties)
+        if not merged:
+            print(
+                f"No trial-info JSONs found under {trials_info_dir} for datasets={datasets} difficulties={difficulties}.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        lines = build_xtts_manifest_lines(merged, args.utterances_per_side, normalize=args.normalize)
+        out_path = os.path.abspath(args.output) if args.output else os.path.join(data_dir, f"{args.system}_voiceanon_inputs.txt")
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+        with open(out_path, "w") as f:
+            for line in lines:
+                f.write(f"{line}\n")
+        print(f"Wrote {out_path} ({len(lines)} utterances)")
+        return
+
     if args.output:
-        merged: dict[tuple[str, str], str] = {}
-        for dataset in datasets:
-            part = _collect_pair_genders_for_dataset(trials_info_dir, dataset, difficulties)
-            for key, g in part.items():
-                if key not in merged:
-                    merged[key] = g
-                elif g and not merged[key]:
-                    merged[key] = g
-                elif g and merged[key] and merged[key] != g:
-                    print(
-                        f"Warning: conflicting gender for {key} across datasets: {merged[key]!r} vs {g!r}",
-                        file=sys.stderr,
-                    )
+        merged = _merge_pair_genders_across_datasets(trials_info_dir, datasets, difficulties)
         if not merged:
             print(
                 f"No trial-info JSONs found under {trials_info_dir} for datasets={datasets} difficulties={difficulties}.",

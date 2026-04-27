@@ -51,10 +51,52 @@ The table below shows the data used for each setting:
 
 Use the same trial definitions and labels from **[DATA.md](DATA.md)**.
 
-1. Use Fisher **audio** for the same calls as in the trials.
-2. Run your **voice anonymization** method on that audio.
-3. Transcribe outputs as needed for content-attack evaluation.
-4. *Detailed voice-anonymization scripts/commands will be added here.*
+1. Install dependencies with `pip install -r requirements.txt`. Voice anonymization additionally depends on `torchaudio` and `TTS`, and uses XTTS via [Coqui TTS](https://github.com/coqui-ai/tts) with the model `tts_models/multilingual/multi-dataset/xtts_v2`. XTTS may download model assets on first run. More details on XTTS usage are available in the Coqui TTS repository.
+2. Use Fisher **audio** for the same calls as in the trials.
+3. Generate XTTS-style `filename|transcript` inputs with:
+
+   ```bash
+   python scripts/whisper_transcribe.py config.yaml \
+     --output-format xtts_manifest \
+     --output data/voiceanon_inputs.txt
+   ```
+
+   This writes one utterance per line in the format `filename.wav|transcript`.
+
+4. Create XTTS base profiles from reference wavs:
+
+   ```bash
+   python scripts/voice_anonymization/create_xtts_base_profiles.py \
+     --input-list data/voice_anonymization/reference_wavs.tsv \
+     --output-dir data/voice_anonymization/base_profiles \
+     --device cuda
+   ```
+
+   `reference_wavs.tsv` should contain tab-separated `speaker_id` and `audio_path`.
+
+5. Create one weighted pseudo-speaker profile per source speaker you want to anonymize:
+
+   ```bash
+   python scripts/voice_anonymization/build_pseudo_speaker_profiles.py \
+     --speaker-list data/voice_anonymization/speaker_ids.txt \
+     --profiles-dir data/voice_anonymization/base_profiles \
+     --output-root data/voice_anonymization/pseudo-spks
+   ```
+
+   `speaker_ids.txt` should contain one source speaker id per line.
+   This produces `pseudo-spks/{speaker_id}/anon_{speaker_id}.pth`.
+
+6. Run the XTTS batch anonymization script on the utterances you want to anonymize:
+
+   ```bash
+   python scripts/voice_anonymization/anonymize_batch_xtts.py \
+     --stm-file data/voiceanon_inputs.txt \
+     --profile-dir data/voice_anonymization \
+     --save-dir data/voiceanonymized \
+     --device cuda
+   ```
+
+7. The batch anonymizer infers `speaker_id` from the filename, loads `PROFILE_DIR/pseudo-spks/{speaker_id}/anon_{speaker_id}.pth`, and writes output to `SAVE_DIR/{speaker_id}/{filename}`.
 
 
 ### Content anonymization
@@ -90,7 +132,7 @@ bash scripts/run_content_pipeline.sh --match --embed-matched --embed-ldc --eval
 
 1. **ASR transcribe Fisher audio calls**
 
-Use `scripts/whisper_transcribe.py` to automatically transcribe **every Fisher audio call** that appears in your trials at the chosen difficulty level (all call IDs used as call 1 or call 2). Store per-call, per-speaker utterances as JSON of the format `{call_id: {speaker_id: {"text": [str, ...], "gender": "m"|"f"}}}` in a file called `whisper_medium_test_trials_utts.json`. These will be used for the first side (call 1) of each trial.
+Use `scripts/whisper_transcribe.py` to automatically transcribe **every Fisher audio call** that appears in your trials at the chosen difficulty level (all call IDs used as call 1 or call 2). For the matched-trial/content pipeline, use the default `utterance_json` mode and store per-call, per-speaker utterances as JSON of the format `{call_id: {speaker_id: {"text": [str, ...], "gender": "m"|"f"}}}` in a file called `whisper_medium_test_trials_utts.json`. These will be used for the first side (call 1) of each trial.
 
 2. **Generate paraphrase prompts**
 
