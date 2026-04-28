@@ -96,7 +96,8 @@ bash scripts/run_content_pipeline.sh --match --embed-matched --embed-ldc --eval
 
 Create prompt files from call 2 utterances according to your prompt recipe/template.
 
-   ```python scripts/generate_paraphrase_prompts.py
+   ```bash
+   python scripts/generate_paraphrase_prompts.py
    ```
 
 3. **Run paraphrasing model/API**
@@ -156,7 +157,8 @@ Evaluate the matched (content anonymization) baseline:
 
 8. **Optional** — Calculate aligned similarity (greedy + DTW)
 
-   ```scripts/calculate_similarity_aligned.py
+   ```bash
+   python scripts/calculate_similarity_aligned.py config.yaml
    ```
 
 Optional utility: `scripts/build_trials_from_utterances.py` can still generate per-system trial `.npy` files if you want them for debugging or custom analyses.
