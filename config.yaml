@@ -13,6 +13,11 @@ ldc_trials_dir: null   # e.g. 'data/ldc_trials' or speech-attribution trials_dat
 # (e.g. {dataset}_basepos_trials_info_final.json). 
 trials_info_dir: null   # e.g. '{speech_attribution_dir}/trials_data'
 
+# Directory of pre-segmented speaker utterance wavs prepared from Fisher audio.
+# Expected layout:
+#   {utterance_audio_dir}/{call_id}/fe_03_{call_id}_{A|B}_{utt_index}_{speaker_id}.wav
+utterance_audio_dir: null   # e.g. 'data/utterance_audio'
+
 datasets: ['test']
 difficulties: ['hard'] # paper uses 'hard'; can use ['base','hard','harder']
 

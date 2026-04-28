@@ -22,7 +22,12 @@ This produces two file types used in this repo:
 - `{dataset}_{trialtype}_trials_info_final.json` (e.g. `test_hardpos_trials_info_final.json`, `test_hardneg_trials_info_final.json`)  
   Used for **matched anonymization experiments** to map call/pin pairs when constructing call1/call2 trial sides from utterance JSON.
 
-Point this repo to those outputs via `speech_attribution_dir` (or `ldc_trials_dir` + `trials_info_dir`) in `config.yaml`.
+Point this repo to those outputs via `speech_attribution_dir` (or `ldc_trials_dir` + `trials_info_dir`) in [config.yaml](config.yaml).
+
+For ASR-based stages in this repo, you also need a directory of pre-segmented speaker
+utterance wavs derived from the Fisher call audio. Use
+`scripts/prepare_utterance_audio.py` to create that layout and set
+`utterance_audio_dir` in [config.yaml](config.yaml).
 
 ---
 
@@ -52,7 +57,29 @@ The table below shows the data used for each setting:
 Use the same trial definitions and labels from **[DATA.md](DATA.md)**.
 
 1. Install dependencies with `pip install -r requirements.txt`. Voice anonymization additionally depends on `torchaudio` and `TTS`, and uses XTTS via [Coqui TTS](https://github.com/coqui-ai/tts) with the model `tts_models/multilingual/multi-dataset/xtts_v2`. XTTS may download model assets on first run. More details on XTTS usage are available in the Coqui TTS repository.
-2. Use Fisher **audio** for the same calls as in the trials.
+   This installs the tools needed to load audio, build speaker profiles, and synthesize anonymized speech with XTTS.
+2. Prepare per-utterance speaker audio from the Fisher call audio:
+
+   ```bash
+   python scripts/prepare_utterance_audio.py \
+     --audio-root /path/to/LDC2004S13/audio \
+     --audio-root /path/to/LDC2005S13/audio \
+     --transcript-root /path/to/LDC2004T19/fe_03_p1_tran/data/trans \
+     --transcript-root /path/to/LDC2005T19/data/trans \
+     --speaker-map /path/to/LDC2004T19/fe_03_p1_tran/doc/fe_03_pindata.tbl \
+     --speaker-map /path/to/LDC2005T19/doc/fe_03_pindata.tbl \
+     --sph2pipe /path/to/sph2pipe \
+     --output-dir data/utterance_audio
+   ```
+
+   Pass each Fisher corpus part separately; use one `--audio-root`, one
+   `--transcript-root`, and one `--speaker-map` for Part 1 and another set for Part 2.
+   `sph2pipe` is required to decode Fisher `.sph` audio; see **[DATA.md](DATA.md)** for
+   installation notes, then pass the full path to the executable, for example
+   `/path/to/sph2pipe_v2.5/sph2pipe`.
+
+   Then set `utterance_audio_dir: data/utterance_audio` in [config.yaml](config.yaml).
+
 3. Generate XTTS-style `filename|transcript` inputs with:
 
    ```bash
@@ -62,6 +89,7 @@ Use the same trial definitions and labels from **[DATA.md](DATA.md)**.
    ```
 
    This writes one utterance per line in the format `filename.wav|transcript`.
+   This gives XTTS both pieces it needs for synthesis: the text to say and a stable filename that encodes which source speaker/utterance the synthesized wav should correspond to.
 
 4. Create XTTS base profiles from reference wavs:
 
@@ -73,6 +101,7 @@ Use the same trial definitions and labels from **[DATA.md](DATA.md)**.
    ```
 
    `reference_wavs.tsv` should contain tab-separated `speaker_id` and `audio_path`.
+   Here, the reference speakers are the target speakers used to condition XTTS, not the original Fisher speakers being anonymized. In our setup, these target/reference speakers come from [VoxCeleb](https://www.robots.ox.ac.uk/~vgg/data/voxceleb/). For each target/reference speaker, we use one reference wav to build a reusable XTTS speaker representation; in our setup, this is the longest available utterance for that VoxCeleb speaker. These base profiles are the starting point for the anonymized target voices used later in the pipeline. We include an extracted metadata file at [data/voice_anonymization/voxceleb_longest_utterances.tsv](data/voice_anonymization/voxceleb_longest_utterances.tsv) with `speaker_id`, duration, and relative VoxCeleb path. Use that file as a reference for how the target/reference speakers were selected, then create your local `reference_wavs.tsv` by pointing each selected speaker to the audio path on your own filesystem.
 
 5. Create one weighted pseudo-speaker profile per source speaker you want to anonymize:
 
@@ -85,6 +114,7 @@ Use the same trial definitions and labels from **[DATA.md](DATA.md)**.
 
    `speaker_ids.txt` should contain one source speaker id per line.
    This produces `pseudo-spks/{speaker_id}/anon_{speaker_id}.pth`.
+   The pseudo-speaker profiles come from the base profiles created in Step 4. For each Fisher source speaker, this script creates a synthetic target profile from the pool of target/reference speaker profiles. If a Fisher speaker appears in multiple conversations, the same pseudo target speaker/profile is reused to keep the anonymized voice consistent across conversations.
 
 6. Run the XTTS batch anonymization script on the utterances you want to anonymize:
 
@@ -96,12 +126,13 @@ Use the same trial definitions and labels from **[DATA.md](DATA.md)**.
      --device cuda
    ```
 
-7. The batch anonymizer infers `speaker_id` from the filename, loads `PROFILE_DIR/pseudo-spks/{speaker_id}/anon_{speaker_id}.pth`, and writes output to `SAVE_DIR/{speaker_id}/{filename}`.
+7. The batch anonymizer reads each transcript line from `voiceanon_inputs.txt` created in Step 3, infers `speaker_id` from the filename, loads `PROFILE_DIR/pseudo-spks/{speaker_id}/anon_{speaker_id}.pth`, and writes output to `SAVE_DIR/{speaker_id}/{filename}`.
+   This is the actual anonymization pass. The script reads each transcript line from `voiceanon_inputs.txt`, looks up the anonymized pseudo-speaker profile for that source speaker, and synthesizes a new wav that keeps the linguistic content while changing the speaker identity cues. The output directory then contains anonymized utterance audio organized by source speaker.
 
 
 ### Content anonymization
 
-Scripts live under `scripts/`. Configure paths and systems in **`config.yaml`**.
+Scripts live under `scripts/`. Configure paths and systems in **[config.yaml](config.yaml)**.
 
 **Setup**
 
@@ -132,11 +163,23 @@ bash scripts/run_content_pipeline.sh --match --embed-matched --embed-ldc --eval
 
 1. **ASR transcribe Fisher audio calls**
 
-Use `scripts/whisper_transcribe.py` to automatically transcribe **every Fisher audio call** that appears in your trials at the chosen difficulty level (all call IDs used as call 1 or call 2). For the matched-trial/content pipeline, use the default `utterance_json` mode and store per-call, per-speaker utterances as JSON of the format `{call_id: {speaker_id: {"text": [str, ...], "gender": "m"|"f"}}}` in a file called `whisper_medium_test_trials_utts.json`. These will be used for the first side (call 1) of each trial.
+First, prepare pre-segmented speaker utterance wavs from the Fisher call audio with
+`scripts/prepare_utterance_audio.py` and set `utterance_audio_dir` in [config.yaml](config.yaml).
+Then use `scripts/whisper_transcribe.py` to automatically transcribe **every Fisher
+speaker side** that appears in your trials at the chosen difficulty level. For the
+matched-trial/content pipeline, use the default `utterance_json` mode and store
+per-call, per-speaker utterances as JSON of the format
+`{call_id: {speaker_id: {"text": [str, ...], "gender": "m"|"f"}}}` in a file called
+`whisper_medium_test_trials_utts.json`. These will be used for the first side (call 1)
+of each trial.
 
 2. **Generate paraphrase prompts**
 
 Use `scripts/generate_paraphrase_prompts.py` to create prompt files from call 2 utterances according to your prompt recipe/template.
+
+```bash
+python scripts/generate_paraphrase_prompts.py
+```
 
 3. **Run paraphrasing model/API**
 
@@ -177,6 +220,8 @@ Create properly matched trials so that **call 1** uses the Whisper ASR transcrip
 
 6. **Embed matched trials with SLUAR**
 
+Use the content attack model, SLUAR, to create embeddings for the matched anonymization trials.
+
    ```bash
    python scripts/embed_trials_sluar.py config.yaml --matched
    ```
@@ -190,7 +235,11 @@ Create properly matched trials so that **call 1** uses the Whisper ASR transcrip
 
    Matched evaluation output go under **`output/matched/`** (e.g. `SLUAR_whisper-gemma3-4b_varyuttsall_test_results.txt`). LDC baseline results are written under **`output/`**.
 
-8. **Optional** — Calculate aligned similarity (greedy + DTW): `scripts/calculate_similarity_aligned.py`
+8. **Optional** — Calculate aligned similarity (greedy + DTW)
+
+   ```bash
+   python scripts/calculate_similarity_aligned.py config.yaml
+   ```
 
 Optional utility: `scripts/build_trials_from_utterances.py` can still generate per-system trial `.npy` files if you want them for debugging or custom analyses.
 

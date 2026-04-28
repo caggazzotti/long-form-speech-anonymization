@@ -11,8 +11,7 @@ Input manifest format:
 Example:
   id00012\t/path/to/ref.wav
 
-This is a cleaned, pushable copy of the local research script
-`create_profile.py`.
+
 """
 
 from __future__ import annotations
