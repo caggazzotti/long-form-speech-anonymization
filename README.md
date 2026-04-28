@@ -155,7 +155,7 @@ Evaluate the matched (content anonymization) baseline:
 
    Matched evaluation outputs go under **`output/matched/`** (e.g. `SLUAR_whisper-gemma3-4b_varyuttsall_test_results.txt`). LDC baseline results are written under **`output/`**.
 
-8. **Optional** — Calculate aligned similarity (greedy + DTW)
+8. **Optional**: Calculate aligned similarity (greedy + DTW)
 
    ```bash
    python scripts/calculate_similarity_aligned.py config.yaml
