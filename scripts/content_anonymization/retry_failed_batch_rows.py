@@ -2,7 +2,7 @@
 Create a retry JSONL containing only prompt rows whose responses failed.
 
 Usage:
-  python scripts/retry_failed_batch_rows.py \
+  python scripts/content_anonymization/retry_failed_batch_rows.py \
     --prompts data/paraphrase_gpt4omini_prompts.jsonl \
     --responses data/paraphrased_gpt4omini_errors.jsonl \
     --output data/paraphrase_gpt4omini_failed_prompts.jsonl

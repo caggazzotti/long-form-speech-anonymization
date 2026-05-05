@@ -4,7 +4,7 @@ Evaluate LDC (full-transcript, no anonymization) SLUAR-embedded trials: AUC and 
 Use this for the baseline where both sides of the trial are the original LDC transcripts.
 
 Usage:
-  python scripts/evaluate_ldc_sluar.py config.yaml
+  python scripts/content_anonymization/evaluate_ldc_sluar.py config.yaml
 """
 
 import os

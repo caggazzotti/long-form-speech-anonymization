@@ -2,14 +2,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 usage() {
   cat <<'EOF'
 Run content-anonymization pipeline stages in order.
 
 Usage:
-  bash scripts/run_content_pipeline.sh [options]
+  bash scripts/content_anonymization/run_content_pipeline.sh [options]
 
 Options:
   -c, --config PATH          Config YAML (default: config.yaml)
@@ -33,42 +33,42 @@ Examples:
   PARAPHRASE_RECIPE=gpt4o-mini PARAPHRASE_MODEL=gpt-4o-mini \
   PARAPHRASE_UTTS=data/whisper_medium_test_trials_utts.json \
   PARAPHRASE_PROMPTS=data/paraphrase_gpt4omini_prompts.jsonl \
-  bash scripts/run_content_pipeline.sh --gen-prompts
+  bash scripts/content_anonymization/run_content_pipeline.sh --gen-prompts
 
   # GPT-5 segment-based (default recipe: ~300-token segments, no previous-utterance context)
   PARAPHRASE_RECIPE=gpt5 PARAPHRASE_MODEL=gpt-5 \
   PARAPHRASE_PROMPTS=data/paraphrase_gpt5_prompts.jsonl \
-  bash scripts/run_content_pipeline.sh --gen-prompts
+  bash scripts/content_anonymization/run_content_pipeline.sh --gen-prompts
 
   # Gemma segment-based (default recipe: 16 utterances with previous N=8 utterance context)
   PARAPHRASE_RECIPE=gemma PARAPHRASE_MODEL=google/gemma-3-4b-it \
   PARAPHRASE_PROMPTS=data/paraphrase_gemma_prompts.jsonl \
-  bash scripts/run_content_pipeline.sh --gen-prompts --run-gemma-local
+  bash scripts/content_anonymization/run_content_pipeline.sh --gen-prompts --run-gemma-local
 
   # Gemma conservative variant (same segmentation/context, conservative prompt template)
   PARAPHRASE_RECIPE=gemma-conservative PARAPHRASE_MODEL=google/gemma-3-4b-it \
   PARAPHRASE_PROMPTS=data/paraphrase_gemma4b_conservative_prompts.jsonl \
-  bash scripts/run_content_pipeline.sh --gen-prompts --run-gemma-local
+  bash scripts/content_anonymization/run_content_pipeline.sh --gen-prompts --run-gemma-local
 
   PARAPHRASE_UTTS=data/whisper_medium_test_trials_utts.json \
   PARAPHRASE_PROMPTS=data/paraphrase_gpt4omini_prompts.jsonl \
-  bash scripts/run_content_pipeline.sh --gen-prompts
+  bash scripts/content_anonymization/run_content_pipeline.sh --gen-prompts
   PARAPHRASE_PROMPTS=data/paraphrase_gpt4omini_prompts.jsonl \
   PARAPHRASE_RESPONSES=data/paraphrased_gpt4omini_responses.jsonl \
   PARAPHRASE_ERRORS=data/paraphrased_gpt4omini_errors.jsonl \
-  bash scripts/run_content_pipeline.sh --run-batch
+  bash scripts/content_anonymization/run_content_pipeline.sh --run-batch
   PARAPHRASE_PROMPTS=data/paraphrase_gpt4omini_prompts.jsonl \
   PARAPHRASE_ERRORS=data/paraphrased_gpt4omini_errors.jsonl \
   PARAPHRASE_RETRY_PROMPTS=data/paraphrase_gpt4omini_retry.jsonl \
-  bash scripts/run_content_pipeline.sh --retry-failed
+  bash scripts/content_anonymization/run_content_pipeline.sh --retry-failed
   PARAPHRASE_RESPONSES=data/paraphrased_gpt4omini_responses.jsonl \
   PARAPHRASE_UTTS_OUT=data/paraphrased_gpt4omini_test_trials_utts.json \
-  bash scripts/run_content_pipeline.sh --paraphrase-to-utts
+  bash scripts/content_anonymization/run_content_pipeline.sh --paraphrase-to-utts
 
   # Core content attack pipeline
-  bash scripts/run_content_pipeline.sh --all
-  bash scripts/run_content_pipeline.sh --match --embed-matched
-  bash scripts/run_content_pipeline.sh --systems "whisper_medium,paraphrased_gpt4omini" --all
+  bash scripts/content_anonymization/run_content_pipeline.sh --all
+  bash scripts/content_anonymization/run_content_pipeline.sh --match --embed-matched
+  bash scripts/content_anonymization/run_content_pipeline.sh --systems "whisper_medium,paraphrased_gpt4omini" --all
 EOF
 }
 
@@ -182,7 +182,7 @@ GEMMA_TOP_P="${GEMMA_TOP_P:-1.0}"
 
 if [[ $DO_GEN_PROMPTS -eq 1 ]]; then
   log_stage "Stage: Generate batch paraphrase prompts"
-  python "${ROOT_DIR}/scripts/generate_paraphrase_prompts.py" \
+  python "${ROOT_DIR}/scripts/content_anonymization/generate_paraphrase_prompts.py" \
     --utterances "$(resolve_path "$PARAPHRASE_UTTS")" \
     --output "$(resolve_path "$PARAPHRASE_PROMPTS")" \
     --model "$PARAPHRASE_MODEL" \
@@ -202,7 +202,7 @@ if [[ $DO_RUN_BATCH -eq 1 ]]; then
     BATCH_ID_ARGS+=(--batch-id-out "$(resolve_path "$PARAPHRASE_BATCH_ID_FILE")")
   fi
 
-  python "${ROOT_DIR}/scripts/run_batch_paraphrase.py" \
+  python "${ROOT_DIR}/scripts/content_anonymization/run_batch_paraphrase.py" \
     --prompts "$(resolve_path "$PARAPHRASE_PROMPTS")" \
     --endpoint "$PARAPHRASE_BATCH_ENDPOINT" \
     --poll-seconds "$PARAPHRASE_POLL_SECONDS" \
@@ -213,7 +213,7 @@ fi
 
 if [[ $DO_RUN_GEMMA_LOCAL -eq 1 ]]; then
   log_stage "Stage: Run local Gemma paraphrase job"
-  python "${ROOT_DIR}/scripts/run_local_gemma_paraphrase.py" \
+  python "${ROOT_DIR}/scripts/content_anonymization/run_local_gemma_paraphrase.py" \
     --prompts "$(resolve_path "$PARAPHRASE_PROMPTS")" \
     --output "$(resolve_path "$PARAPHRASE_RESPONSES")" \
     --model-id "$GEMMA_MODEL_ID" \
@@ -224,7 +224,7 @@ fi
 
 if [[ $DO_RETRY_FAILED -eq 1 ]]; then
   log_stage "Stage: Build retry prompt JSONL from failed rows"
-  python "${ROOT_DIR}/scripts/retry_failed_batch_rows.py" \
+  python "${ROOT_DIR}/scripts/content_anonymization/retry_failed_batch_rows.py" \
     --prompts "$(resolve_path "$PARAPHRASE_PROMPTS")" \
     --responses "$(resolve_path "$PARAPHRASE_ERRORS")" \
     --output "$(resolve_path "$PARAPHRASE_RETRY_PROMPTS")"
@@ -240,7 +240,7 @@ if [[ $DO_PARAPHRASE_TO_UTTS -eq 1 ]]; then
   if [[ "$PARAPHRASE_NORMALIZE" == "1" ]]; then
     PARSE_ARGS+=(--normalize)
   fi
-  python "${ROOT_DIR}/scripts/paraphrase_responses_to_utterances.py" "${PARSE_ARGS[@]}"
+  python "${ROOT_DIR}/scripts/content_anonymization/paraphrase_responses_to_utterances.py" "${PARSE_ARGS[@]}"
 fi
 
 if [[ $DO_BUILD -eq 1 ]]; then
@@ -248,30 +248,30 @@ if [[ $DO_BUILD -eq 1 ]]; then
   for system in "${SYSTEMS[@]}"; do
     if [[ -n "$system" ]]; then
       echo "Building trials for system: $system"
-      python "${ROOT_DIR}/scripts/build_trials_from_utterances.py" "$CONFIG" --system "$system"
+      python "${ROOT_DIR}/scripts/content_anonymization/build_trials_from_utterances.py" "$CONFIG" --system "$system"
     fi
   done
 fi
 
 if [[ $DO_MATCH -eq 1 ]]; then
   log_stage "Stage: Match text trials (Whisper + anonymized)"
-  python "${ROOT_DIR}/scripts/match_trials.py" "$CONFIG"
+  python "${ROOT_DIR}/scripts/content_anonymization/match_trials.py" "$CONFIG"
 fi
 
 if [[ $DO_EMBED_MATCHED -eq 1 ]]; then
   log_stage "Stage: Embed matched text trials with SLUAR"
-  python "${ROOT_DIR}/scripts/embed_trials_sluar.py" "$CONFIG" --matched
+  python "${ROOT_DIR}/scripts/content_anonymization/embed_trials_sluar.py" "$CONFIG" --matched
 fi
 
 if [[ $DO_EMBED_LDC -eq 1 ]]; then
   log_stage "Stage: Embed LDC baseline trials with SLUAR"
-  python "${ROOT_DIR}/scripts/embed_trials_sluar.py" "$CONFIG" --system ldc --varyutts
+  python "${ROOT_DIR}/scripts/content_anonymization/embed_trials_sluar.py" "$CONFIG" --system ldc --varyutts
 fi
 
 if [[ $DO_EVAL -eq 1 ]]; then
   log_stage "Stage: Evaluate matched and LDC baselines"
-  python "${ROOT_DIR}/scripts/evaluate_matched_trials.py" "$CONFIG"
-  python "${ROOT_DIR}/scripts/evaluate_ldc_sluar.py" "$CONFIG"
+  python "${ROOT_DIR}/scripts/content_anonymization/evaluate_matched_trials.py" "$CONFIG"
+  python "${ROOT_DIR}/scripts/content_anonymization/evaluate_ldc_sluar.py" "$CONFIG"
 fi
 
 echo

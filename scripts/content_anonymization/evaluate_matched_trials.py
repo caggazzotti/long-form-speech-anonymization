@@ -2,7 +2,7 @@
 Evaluate matched (non-anon vs anon) SLUAR-embedded trials: AUC and EER.
 
 Usage:
-  python scripts/evaluate_matched_trials.py config.yaml
+  python scripts/content_anonymization/evaluate_matched_trials.py config.yaml
 """
 
 import os

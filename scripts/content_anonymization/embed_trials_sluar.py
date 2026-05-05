@@ -6,8 +6,8 @@ SLUAR checkpoint: https://huggingface.co/noandrews/sluar
 Requires: transformers, torch. Loading uses trust_remote_code=True.
 
 Usage:
-  python scripts/embed_trials_sluar.py config.yaml [--system whisper_medium] [--varyutts]
-  python scripts/embed_trials_sluar.py config.yaml --matched
+  python scripts/content_anonymization/embed_trials_sluar.py config.yaml [--system whisper_medium] [--varyutts]
+  python scripts/content_anonymization/embed_trials_sluar.py config.yaml --matched
 """
 
 import os

@@ -43,8 +43,8 @@ The table below shows the data used for each setting:
 3. Embed and evaluate LDC baseline:
 
    ```bash
-   python scripts/embed_trials_sluar.py config.yaml --system ldc --varyutts
-   python scripts/evaluate_ldc_sluar.py config.yaml
+   python scripts/content_anonymization/embed_trials_sluar.py config.yaml --system ldc --varyutts
+   python scripts/content_anonymization/evaluate_ldc_sluar.py config.yaml
    ```
 
 ### Voice anonymization
@@ -59,7 +59,7 @@ Use the same trial definitions and labels from **[DATA.md](DATA.md)**.
 
 ### Content anonymization
 
-Scripts live under `scripts/`. Configure paths and systems in **`config.yaml`**.
+Scripts live under `scripts/content_anonymization/`. Configure paths and systems in **`config.yaml`**.
 
 **Setup**
 
@@ -77,13 +77,13 @@ pip install -r requirements.txt
 You can run all stages with one command:
 
 ```bash
-bash scripts/run_content_pipeline.sh --all
+bash scripts/content_anonymization/run_content_pipeline.sh --all
 ```
 
 Or run selected stages:
 
 ```bash
-bash scripts/run_content_pipeline.sh --match --embed-matched --embed-ldc --eval
+bash scripts/content_anonymization/run_content_pipeline.sh --match --embed-matched --embed-ldc --eval
 ```
 
 ### Details on each stage of the pipeline:
@@ -97,7 +97,7 @@ bash scripts/run_content_pipeline.sh --match --embed-matched --embed-ldc --eval
 Create prompt files from call 2 utterances according to your prompt recipe/template.
 
    ```bash
-   python scripts/generate_paraphrase_prompts.py
+   python scripts/content_anonymization/generate_paraphrase_prompts.py
    ```
 
 3. **Run paraphrasing model/API**
@@ -105,8 +105,8 @@ Create prompt files from call 2 utterances according to your prompt recipe/templ
 Produce anonymized text for the **second side** of each trial (call 2).
 
 Run either:
-- `scripts/run_batch_paraphrase.py` for batch/API paraphrasing workflows, or
-- `scripts/run_local_gemma_paraphrase.py` for local Gemma-based paraphrasing.
+- `scripts/content_anonymization/run_batch_paraphrase.py` for batch/API paraphrasing workflows, or
+- `scripts/content_anonymization/run_local_gemma_paraphrase.py` for local Gemma-based paraphrasing.
 
 Use a stable `custom_id` per utterance (e.g., `callId-speakerId-time`) so outputs can be aligned.
 
@@ -116,7 +116,7 @@ Convert response files into `data/paraphrased_*_test_trials_utts.json`, where * 
 
 
    ```bash
-   python scripts/paraphrase_responses_to_utterances.py \
+   python scripts/content_anonymization/paraphrase_responses_to_utterances.py \
     --responses data/paraphrased_gpt4omini_responses.jsonl \
     --output data/paraphrased_gpt4omini_test_trials_utts.json \
     --normalize
@@ -127,7 +127,7 @@ Convert response files into `data/paraphrased_*_test_trials_utts.json`, where * 
 Create properly matched trials so that **call 1** uses the Whisper ASR transcript and **call 2** uses the anonymized/paraphrased text (same trial order and labels as the Fisher info files).
 
    ```bash
-   python scripts/match_trials.py config.yaml
+   python scripts/content_anonymization/match_trials.py config.yaml
    ```
 
    Matched text-trial `.npy` files are written under **`trials/matched/`** (e.g. `whisper-gemma3-4b_test_hard_trials.npy`). Per-system and LDC trial `.npy` files stay under **`trials/`** (and **`trials/varyutts/`** when used).
@@ -142,7 +142,7 @@ Create properly matched trials so that **call 1** uses the Whisper ASR transcrip
 Use the content attack model, SLUAR, to create embeddings for the now matched anonymization trials.
 
    ```bash
-   python scripts/embed_trials_sluar.py config.yaml --matched
+   python scripts/content_anonymization/embed_trials_sluar.py config.yaml --matched
    ```
 
 7. **Evaluate**
@@ -150,7 +150,7 @@ Use the content attack model, SLUAR, to create embeddings for the now matched an
 Evaluate the matched (content anonymization) baseline:
 
    ```bash
-   python scripts/evaluate_matched_trials.py config.yaml
+   python scripts/content_anonymization/evaluate_matched_trials.py config.yaml
    ```
 
    Matched evaluation outputs go under **`output/matched/`** (e.g. `SLUAR_whisper-gemma3-4b_varyuttsall_test_results.txt`). LDC baseline results are written under **`output/`**.
@@ -158,10 +158,10 @@ Evaluate the matched (content anonymization) baseline:
 8. **Optional**: Calculate aligned similarity (greedy + DTW)
 
    ```bash
-   python scripts/calculate_similarity_aligned.py config.yaml
+   python scripts/content_anonymization/calculate_similarity_aligned.py config.yaml
    ```
 
-Optional utility: `scripts/build_trials_from_utterances.py` can still generate per-system trial `.npy` files if you want them for debugging or custom analyses.
+Optional utility: `scripts/content_anonymization/build_trials_from_utterances.py` can still generate per-system trial `.npy` files if you want them for debugging or custom analyses.
 
 
 ### Voice + Content Anonymization

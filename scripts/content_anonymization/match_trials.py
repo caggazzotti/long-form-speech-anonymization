@@ -7,7 +7,7 @@ Pairs trials so that call 1 is from the non-anonymized system and call 2 from
 the anonymized/paraphrased system, by trial index.
 
 Usage:
-  python scripts/match_trials.py config.yaml
+  python scripts/content_anonymization/match_trials.py config.yaml
 """
 from __future__ import annotations
 
