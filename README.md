@@ -48,8 +48,8 @@ The table below shows the data used for each setting:
 3. Embed and evaluate LDC baseline:
 
    ```bash
-   python scripts/embed_trials_sluar.py config.yaml --system ldc --varyutts
-   python scripts/evaluate_ldc_sluar.py config.yaml
+   python scripts/content_anonymization/embed_trials_sluar.py config.yaml --system ldc --varyutts
+   python scripts/content_anonymization/evaluate_ldc_sluar.py config.yaml
    ```
 
 ### Voice anonymization
@@ -132,7 +132,7 @@ Use the same trial definitions and labels from **[DATA.md](DATA.md)**.
 
 ### Content anonymization
 
-Scripts live under `scripts/`. Configure paths and systems in **[config.yaml](config.yaml)**.
+Scripts live under `scripts/content_anonymization/`. Configure paths and systems in **`config.yaml`**.
 
 **Setup**
 
@@ -150,32 +150,28 @@ pip install -r requirements.txt
 You can run all stages with one command:
 
 ```bash
-bash scripts/run_content_pipeline.sh --all
+bash scripts/content_anonymization/run_content_pipeline.sh --all
 ```
 
 Or run selected stages:
 
 ```bash
-bash scripts/run_content_pipeline.sh --match --embed-matched --embed-ldc --eval
+bash scripts/content_anonymization/run_content_pipeline.sh --match --embed-matched --embed-ldc --eval
 ```
 
 ### Details on each stage of the pipeline:
 
 1. **ASR transcribe Fisher audio calls**
 
-First, prepare pre-segmented speaker utterance wavs from the Fisher call audio with
-`scripts/prepare_utterance_audio.py` and set `utterance_audio_dir` in [config.yaml](config.yaml).
-Then use `scripts/whisper_transcribe.py` to automatically transcribe **every Fisher
-speaker side** that appears in your trials at the chosen difficulty level. For the
-matched-trial/content pipeline, use the default `utterance_json` mode and store
-per-call, per-speaker utterances as JSON of the format
-`{call_id: {speaker_id: {"text": [str, ...], "gender": "m"|"f"}}}` in a file called
-`whisper_medium_test_trials_utts.json`. These will be used for the first side (call 1)
-of each trial.
+(See Step 3 under Voice anonymization for directions) Automatically transcribe **every Fisher audio call** that appears in your trials at the chosen difficulty level (all call IDs used as call 1 or call 2). Store per-call, per-speaker utterances as JSON of the format `{call_id: {speaker_id: {"text": [str, ...], "gender": "m"|"f"}}}` in a file called `whisper_medium_test_trials_utts.json`. These will be used for the first side (call 1) of each trial.
 
 2. **Generate paraphrase prompts**
 
-Use `scripts/generate_paraphrase_prompts.py` to create prompt files from call 2 utterances according to your prompt recipe/template.
+Create prompt files from call 2 utterances according to your prompt recipe/template.
+
+   ```bash
+   python scripts/content_anonymization/generate_paraphrase_prompts.py
+   ```
 
 ```bash
 python scripts/generate_paraphrase_prompts.py
@@ -186,29 +182,29 @@ python scripts/generate_paraphrase_prompts.py
 Produce anonymized text for the **second side** of each trial (call 2).
 
 Run either:
-- `scripts/run_batch_paraphrase.py` for batch/API paraphrasing workflows, or
-- `scripts/run_local_gemma_paraphrase.py` for local Gemma-based paraphrasing.
+- `scripts/content_anonymization/run_batch_paraphrase.py` for batch/API paraphrasing workflows, or
+- `scripts/content_anonymization/run_local_gemma_paraphrase.py` for local Gemma-based paraphrasing.
 
 Use a stable `custom_id` per utterance (e.g., `callId-speakerId-time`) so outputs can be aligned.
 
 4. **Convert paraphrase responses to utterance JSON**
 
-Use `scripts/paraphrase_responses_to_utterances.py` to convert response files into
-`data/paraphrased_*_test_trials_utts.json`, where * stands for each LLM paraphrasing model name.
+Convert response files into `data/paraphrased_*_test_trials_utts.json`, where * stands for each LLM paraphrasing model name.
 
-```bash
-python scripts/paraphrase_responses_to_utterances.py \
-  --responses data/paraphrased_gpt4omini_responses.jsonl \
-  --output data/paraphrased_gpt4omini_test_trials_utts.json \
-  --normalize
-```
+
+   ```bash
+   python scripts/content_anonymization/paraphrase_responses_to_utterances.py \
+    --responses data/paraphrased_gpt4omini_responses.jsonl \
+    --output data/paraphrased_gpt4omini_test_trials_utts.json \
+    --normalize
+   ```
 
 5. **Match trials directly from utterances + trial definitions**
 
 Create properly matched trials so that **call 1** uses the Whisper ASR transcript and **call 2** uses the anonymized/paraphrased text (same trial order and labels as the Fisher info files).
 
    ```bash
-   python scripts/match_trials.py config.yaml
+   python scripts/content_anonymization/match_trials.py config.yaml
    ```
 
    Matched text-trial `.npy` files are written under **`trials/matched/`** (e.g. `whisper-gemma3-4b_test_hard_trials.npy`). Per-system and LDC trial `.npy` files stay under **`trials/`** (and **`trials/varyutts/`** when used).
@@ -220,28 +216,29 @@ Create properly matched trials so that **call 1** uses the Whisper ASR transcrip
 
 6. **Embed matched trials with SLUAR**
 
-Use the content attack model, SLUAR, to create embeddings for the matched anonymization trials.
+Use the content attack model, SLUAR, to create embeddings for the now matched anonymization trials.
 
    ```bash
-   python scripts/embed_trials_sluar.py config.yaml --matched
+   python scripts/content_anonymization/embed_trials_sluar.py config.yaml --matched
    ```
 
 7. **Evaluate**
-   Matched (content anonymization) baseline:
+  
+Evaluate the matched (content anonymization) baseline:
 
    ```bash
-   python scripts/evaluate_matched_trials.py config.yaml
+   python scripts/content_anonymization/evaluate_matched_trials.py config.yaml
    ```
 
-   Matched evaluation output go under **`output/matched/`** (e.g. `SLUAR_whisper-gemma3-4b_varyuttsall_test_results.txt`). LDC baseline results are written under **`output/`**.
+   Matched evaluation outputs go under **`output/matched/`** (e.g. `SLUAR_whisper-gemma3-4b_varyuttsall_test_results.txt`). LDC baseline results are written under **`output/`**.
 
-8. **Optional** — Calculate aligned similarity (greedy + DTW)
+8. **Optional**: Calculate aligned similarity (greedy + DTW)
 
    ```bash
-   python scripts/calculate_similarity_aligned.py config.yaml
+   python scripts/content_anonymization/calculate_similarity_aligned.py config.yaml
    ```
 
-Optional utility: `scripts/build_trials_from_utterances.py` can still generate per-system trial `.npy` files if you want them for debugging or custom analyses.
+Optional utility: `scripts/content_anonymization/build_trials_from_utterances.py` can still generate per-system trial `.npy` files if you want them for debugging or custom analyses.
 
 
 ### Voice + Content Anonymization

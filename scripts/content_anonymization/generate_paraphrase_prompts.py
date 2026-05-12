@@ -26,9 +26,7 @@ GPT4O_SYSTEM_PROMPT = (
     "in your response."
 )
 GPT4O_USER_PROMPT = (
-    "Paraphrase the following utterance, making sure to replace any personally identifying information such as names "
-    "and places with different names and places. Keep the meaning but change the style as long as it's consistent with "
-    "a {gender} speaker. If the utterance is too short to paraphrase, just give the original utterance: <utterance> {utt} </utterance>"
+    "Paraphrase the following utterance. Keep the meaning but change the style. Replace any personally identifying information such as names and places with different names and places consistent with a {gender} speaker. If the utterance is too short to paraphrase, just give the original utterance: <utterance> {utt} </utterance>"
 )
 GPT5_SYSTEM_PROMPT = (
     "You are an AI assistant that anonymizes and condenses utterances so they are shorter and simpler. Only provide "

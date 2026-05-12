@@ -9,13 +9,14 @@ ID. Example:
 Default output is the utterance JSON used by the content / matched-trial pipeline:
   { call_id: { speaker_pin: { "text": [str, ...], "gender": "m"|"f" } } }
 
-This script can also emit XTTS-style `filename.wav|transcript` rows for the voice
-anonymization pipeline.
+Gender is taken from Fisher trial-info JSONs (same fields as speech-attribution) so
+scripts/content_anonymization/generate_paraphrase_prompts.py can fill {gender} / "Speaker's gender:" lines.
+
 
 Usage:
-  python scripts/whisper_transcribe.py config.yaml
-  python scripts/whisper_transcribe.py config.yaml --system whisper_medium
-  python scripts/whisper_transcribe.py config.yaml --output-format xtts_manifest --output data/voiceanon_inputs.txt
+  python scripts/content_anonymization/whisper_transcribe.py config.yaml
+  python scripts/content_anonymization/whisper_transcribe.py config.yaml --system whisper_medium --utterances-per-side 3
+  python scripts/content_anonymization/whisper_transcribe.py config.yaml --no-normalize
 """
 
 from __future__ import annotations

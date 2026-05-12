@@ -5,7 +5,7 @@ Uses sentence embeddings (all-MiniLM-L6-v2) and optional normalization.
 Output: per-LLM scores and optional combined txt file.
 
 Usage:
-  python scripts/calculate_similarity_aligned.py config.yaml --original data/whisper_medium_test_trials_utts.json --paraphrased data/paraphrased_gpt4omini_test_trials_utts.json [--output output/aligned_sim_scores_gpt4omini.txt]
+  python scripts/content_anonymization/calculate_similarity_aligned.py config.yaml --original data/whisper_medium_test_trials_utts.json --paraphrased data/paraphrased_gpt4omini_test_trials_utts.json [--output output/aligned_sim_scores_gpt4omini.txt]
 """
 
 import argparse

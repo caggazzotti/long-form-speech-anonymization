@@ -8,7 +8,7 @@ Expects response format: each line is a JSON object with at least:
 Output: {call_id: {speaker_id: {'text': [str, ...]}}} saved as JSON.
 
 Usage:
-  python scripts/paraphrase_responses_to_utterances.py --responses data/paraphrased_gpt4omini_responses.jsonl --output data/paraphrased_gpt4omini_test_trials_utts.json [--normalize]
+  python scripts/content_anonymization/paraphrase_responses_to_utterances.py --responses data/paraphrased_gpt4omini_responses.jsonl --output data/paraphrased_gpt4omini_test_trials_utts.json [--normalize]
 """
 
 from __future__ import annotations
