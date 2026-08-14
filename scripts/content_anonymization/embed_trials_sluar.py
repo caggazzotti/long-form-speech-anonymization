@@ -1,7 +1,7 @@
 """
 Embed trials with SLUAR (content-attack model) via Hugging Face checkpoint.
 
-SLUAR checkpoint: https://huggingface.co/noandrews/sluar
+SLUAR checkpoint: https://huggingface.co/c-aggazzotti/sluar_75000
 
 Requires: transformers, torch. Loading uses trust_remote_code=True.
 
@@ -97,7 +97,7 @@ def main():
     work_dir = os.path.abspath(cfg.get("work_dir", "."))
     trials_dir = os.path.join(work_dir, "trials")
     trials_vary_dir = os.path.join(work_dir, "trials", "varyutts")
-    model_id = cfg.get("sluar_model_id", "noandrews/sluar")
+    model_id = cfg.get("sluar_model_id", "c-aggazzotti/sluar_75000")
     datasets = cfg.get("datasets", ["test"])
     difficulties = cfg.get("difficulties", ["hard"])
     varyutts = args.varyutts or (cfg.get("varyutts") == "yes")
